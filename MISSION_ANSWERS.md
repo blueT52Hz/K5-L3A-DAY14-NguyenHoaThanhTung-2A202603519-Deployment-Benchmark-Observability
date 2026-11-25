@@ -117,13 +117,77 @@ docker compose -p k5-day14-docker logs --tail 8 nginx agent
 - URL: https://your-app.railway.app
 - Screenshot: [Link to screenshot in repo]
 
-## Part 4: API Security
+## Part 4 — API Security
 
-### Exercise 4.1-4.3: Test results
-[Paste your test outputs]
+### Exercise 4.1 — API key
 
-### Exercise 4.4: Cost guard implementation
-[Explain your approach]
+`verify_api_key()` là dependency của `POST /ask`. Hàm đọc header `X-API-Key` và so sánh với biến môi trường `AGENT_API_KEY`. Thiếu key trả `401`, gửi sai key trả `403`, gửi đúng key thì request được xử lý. Để xoay key của bản demo, cập nhật biến môi trường, khởi động lại service để nạp key mới và cập nhật client.
+
+Trích kết quả `curl -i` khi gửi JSON `{"question":"Hello"}`:
+
+```text
+# Thiếu key
+HTTP/1.1 401 Unauthorized
+{"detail":"Missing API key. Include header: X-API-Key: <your-key>"}
+
+# Sai key
+HTTP/1.1 403 Forbidden
+{"detail":"Invalid API key."}
+
+# Đúng key
+HTTP/1.1 200 OK
+{"question":"Hello","answer":"Tôi là AI agent được deploy lên cloud. Câu hỏi của bạn đã được nhận."}
+```
+
+### Exercise 4.2 — JWT
+
+Tài khoản demo `student` đăng nhập qua `POST /auth/token`. Server ký JWT bằng HS256, đặt `sub` là username, đưa role vào claim `role` và đặt thời hạn 60 phút. Client gửi JWT trong `Authorization: Bearer <token>`. Dependency `verify_token()` kiểm tra chữ ký và hạn dùng trước khi chuyển username và role cho endpoint.
+
+```text
+# POST /auth/token
+HTTP/1.1 200 OK
+{"token_type":"bearer","expires_in_minutes":60,"hint":"[REDACTED]","access_token":"[REDACTED]"}
+
+# POST /ask thiếu JWT
+HTTP/1.1 401 Unauthorized
+www-authenticate: Bearer
+{"detail":"Authentication required. Include: Authorization: Bearer <token>"}
+```
+
+### Exercise 4.3 — Rate limiting
+
+Bản demo dùng **sliding window** 60 giây theo từng username. Mỗi username có một `deque` lưu timestamp của các request đã được chấp nhận. Mỗi lần gọi, limiter bỏ các timestamp cũ và trả `429` khi đã đủ quota. Tài khoản `student` có quota **10 request/60 giây**. Server chọn quota **100 request/60 giây** cho role `admin` đã được xác thực từ JWT. State trong demo nằm trong bộ nhớ của tiến trình.
+
+Đã gửi 20 request liên tiếp bằng `curl -i` với JWT của `student`. Request **1–10** trả `200`, request **11–20** trả `429`.
+
+```text
+# Request 10
+HTTP/1.1 200 OK
+{"question":"Test 10","answer":"Agent đang hoạt động tốt! (mock response) Hỏi thêm câu hỏi đi nhé.","usage":{"requests_remaining":0,"budget_remaining_usd":0.000191}}
+
+# Request 11
+HTTP/1.1 429 Too Many Requests
+x-ratelimit-limit: 10
+x-ratelimit-remaining: 0
+retry-after: 59
+{"detail":{"error":"Rate limit exceeded","limit":10,"window_seconds":60,"retry_after_seconds":59}}
+```
+
+Trong response demo trên, trường `budget_remaining_usd` đang chứa chi phí đã dùng theo cách gán trong `app.py`.
+
+### Exercise 4.4 — Cost guard với Redis
+
+Hàm [`check_budget(user_id, estimated_cost)`](04-api-gateway/production/cost_guard.py) của bài tập giữ trước chi phí ước tính theo hạn mức **10 USD/user/tháng**. Redis lưu tổng chi phí dưới key `budget:<user_id>:<YYYY-MM>` bằng đơn vị một phần triệu USD. Key hết hạn lúc 00:00 UTC ngày đầu tháng kế tiếp.
+
+Hàm đọc tổng đã giữ, cộng chi phí ước tính và từ chối nếu vượt 10 USD. `WATCH` và `MULTI/EXEC` giúp phép đọc, kiểm tra và ghi an toàn với các request đồng thời. Nếu key thay đổi trước lúc ghi, hàm đọc lại và thử giao dịch mới. Endpoint `/ask` của bản demo JWT dùng cost guard theo ngày có sẵn. Hàm theo tháng được kiểm thử riêng với Redis.
+
+Kết quả kiểm thử trên Redis 7:
+
+- Cùng một user giữ 7,50 USD và 2,50 USD thành công. Khoản 0,01 USD tiếp theo bị từ chối, tổng vẫn là 10 USD.
+- User khác vẫn giữ được 0,01 USD. Key hết hạn đúng đầu tháng kế tiếp theo UTC.
+- Trong 8 lượt giữ đồng thời, mỗi lượt 3 USD, có 3 lượt thành công và 5 lượt bị từ chối. Tổng cuối là 9 USD.
+
+Rate limit giới hạn số request trong một cửa sổ thời gian. Cost guard giới hạn tổng tiền vì các request có thể dùng số token và chi phí rất khác nhau.
 
 ## Part 5: Scaling & Reliability
 
@@ -132,3 +196,4 @@ docker compose -p k5-day14-docker logs --tail 8 nginx agent
 
 ## AI log
 - **CP2:** Hỏi Codex về các command của Docker để lấy ra các thông tin của các image được build
+- **CP3:** Hỏi Codex về cách triên khai bài lab, gợi ý code.
