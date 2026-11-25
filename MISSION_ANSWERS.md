@@ -113,9 +113,18 @@ docker compose -p k5-day14-docker logs --tail 8 nginx agent
 
 ## Part 3: Cloud Deployment
 
-### Exercise 3.1: Railway deployment
-- URL: https://your-app.railway.app
-- Screenshot: [Link to screenshot in repo]
+### Exercises 3.1–3.2 — Triển khai agent Part 6
+
+Đã có [URL public trên Railway](https://k5-l3a-day14-nguyenhoathanhtung-2a202603519-depl-production.up.railway.app/). Kiểm tra từ bên ngoài: /health trả 200, /ready trả 200 và POST /ask thiếu key trả 401. Còn kiểm tra POST /ask với key hợp lệ. [Chi tiết triển khai](DEPLOYMENT.md).
+
+Railway dùng `railway.toml` để chọn Dockerfile và health check `/health`. Khi triển khai theo file này, người triển khai cấp Redis và cấu hình các biến của agent trên nền tảng. Render dùng một Blueprint mô tả cả web service và Key Value, tự sinh `AGENT_API_KEY` và nối `REDIS_URL` đến datastore qua mạng riêng.
+
+### Exercise 3.3 — Pipeline Cloud Run
+
+1. Cloud Build chạy bước cài Python dependencies và gọi pytest.
+2. Bước build tạo Docker image với hai tag là commit SHA và `latest`.
+3. Bước push đưa các tag lên Container Registry. Bước deploy chọn image theo SHA và triển khai Cloud Run tại `asia-southeast1`.
+4. Manifest `service.yaml` mô tả giới hạn 1–10 instance, startup probe `/ready`, liveness probe `/health` và secret lấy từ Secret Manager.
 
 ## Part 4 — API Security
 
