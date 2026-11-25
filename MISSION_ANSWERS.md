@@ -191,9 +191,82 @@ Rate limit giới hạn số request trong một cửa sổ thời gian. Cost gu
 
 ## Part 5: Scaling & Reliability
 
-### Exercise 5.1-5.5: Implementation notes
-[Your explanations and test results]
+### Exercise 5.1 — Kiểm tra liveness và readiness
+
+Mở PowerShell ở gốc repo. Dùng image `my-agent:develop` đã build ở CP2 làm môi trường Linux, gắn mã nguồn **CP4 develop** vào container ở chế độ chỉ đọc. Cổng trên máy là 18004.
+
+```powershell
+$src = (Resolve-Path '05-scaling-reliability/develop').Path
+docker run -d --name k5-day14-cp4-probes -p 127.0.0.1:18004:8000 --mount "type=bind,source=$src,target=/cp4,readonly" -w /cp4 -e PYTHONDONTWRITEBYTECODE=1 my-agent:develop python app.py
+curl.exe -i http://127.0.0.1:18004/health
+curl.exe -i http://127.0.0.1:18004/ready
+```
+
+Khi app khởi động xong, cả hai endpoint trả HTTP 200. `/health` trả `status: ok` và uptime, cho biết tiến trình còn phản hồi. `/ready` trả `ready: true`, cho biết instance có thể nhận traffic. Trong bản develop, readiness dựa trên cờ khởi tạo của app. Khi cờ là false, handler trả 503.
+
+### Exercise 5.2 — Dừng agent khi đang xử lý request
+
+Trong cùng cửa sổ PowerShell, gửi một request bất đồng bộ rồi yêu cầu Docker dừng container. Bản develop đọc `question` từ query string. Mock LLM xử lý khoảng 3 giây nên có thời gian gửi SIGTERM trước khi request hoàn tất.
+
+```powershell
+$client = New-Object System.Net.WebClient
+$client.Encoding = [Text.Encoding]::UTF8
+$pending = $client.UploadStringTaskAsync([uri]'http://127.0.0.1:18004/ask?question=Long%20task', 'POST', '')
+Start-Sleep -Milliseconds 500
+docker stop -t 10 k5-day14-cp4-probes
+$pending.GetAwaiter().GetResult()
+docker logs k5-day14-cp4-probes
+docker inspect -f '{{.State.ExitCode}}' k5-day14-cp4-probes
+docker rm k5-day14-cp4-probes
+```
+
+Client nhận được JSON có `answer`. Log ghi `POST /ask ... 200 OK`, `Shutdown complete` và tín hiệu 15 (SIGTERM). Container thoát với mã **0**. Request đang xử lý đã hoàn tất trong thời gian Docker chờ dừng.
+
+### Exercise 5.3 — Xác định nơi lưu lịch sử
+
+Đọc `save_session()` và `load_session()` trong [production/app.py](05-scaling-reliability/production/app.py). Các replica có RAM riêng. Nếu mỗi replica giữ lịch sử trong RAM, request kế tiếp đến replica khác có thể mất ngữ cảnh. Bản production ghi session vào Redis theo key `session:<session_id>`, gia hạn TTL 3.600 giây khi ghi và giữ tối đa 20 tin nhắn. Client dùng cùng `session_id` để tiếp tục hội thoại.
+
+### Exercise 5.4 — Chạy ba replica và quan sát Nginx chia tải
+
+Từ gốc repo, chạy:
+
+```powershell
+Set-Location '05-scaling-reliability/production'
+if (-not (Test-Path .env.local)) { New-Item -ItemType File .env.local | Out-Null }
+docker compose -p k5-day14-scaling up -d --build --scale agent=3 --wait
+docker compose -p k5-day14-scaling ps
+Invoke-RestMethod http://localhost:8080/health
+1..10 | ForEach-Object {
+    $body = @{ question = "Request $_" } | ConvertTo-Json
+    (Invoke-RestMethod -Method Post -Uri http://localhost:8080/chat -ContentType application/json -Body $body).served_by
+} | Group-Object | Select-Object Name,Count
+```
+
+Compose báo ba agent và Redis đều `healthy`. Health qua Nginx trả `storage: redis`, `redis_connected: true`. Trong 10 request, `instance-9a2ccd` xử lý 4, `instance-5ba4b2` xử lý 3 và `instance-5808b4` xử lý 3. ID được tạo lại khi khởi động container mới.
+
+### Exercise 5.5 — Kiểm tra cùng một session qua nhiều replica
+
+Vẫn ở thư mục production:
+
+```powershell
+$env:PYTHONIOENCODING = 'utf-8'
+python test_stateless.py
+```
+
+Script gửi 5 câu hỏi tuần tự vào `POST /chat`, dùng lại session ID từ response đầu và đọc `GET /chat/<session_id>/history`. Trong lần chạy này, session `0fdf6ae4-e401-4508-8ed6-9bc76719eac7` đi qua cả ba instance. History có **10 tin nhắn** theo thứ tự 5 cặp user/assistant. Script không tự dừng replica.
+
+Để kiểm tra thêm, dừng một replica rồi đọc lại đúng session vừa tạo. Dùng ID mà script in trên máy của bạn.
+
+```powershell
+$sessionId = Read-Host 'Nhap Session ID tu test_stateless.py'
+docker stop k5-day14-scaling-agent-1
+(Invoke-RestMethod "http://localhost:8080/chat/$sessionId/history").count
+docker compose -p k5-day14-scaling down
+```
+
+Sau khi dừng replica thứ nhất, hai replica còn lại vẫn phục vụ được yêu cầu qua Nginx và history trả về đủ **10** tin nhắn.
 
 ## AI log
 - **CP2:** Hỏi Codex về các command của Docker để lấy ra các thông tin của các image được build
 - **CP3:** Hỏi Codex về cách triên khai bài lab, gợi ý code.
+- **CP4:** Hỏi Codex về các lệnh docker, giải thích lệnh.
