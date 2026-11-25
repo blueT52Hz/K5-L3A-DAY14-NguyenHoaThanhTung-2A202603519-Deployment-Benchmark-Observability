@@ -304,3 +304,4 @@ Kết quả chạy toàn bộ `python check_production_ready.py` trên Linux v�
 - **CP3:** Hỏi Codex về cách triên khai bài lab, gợi ý code.
 - **CP4:** Hỏi Codex về các lệnh docker, giải thích lệnh.
 - **CP5:** Yêu cầu Codex hướng dẫn và thực hiện Part 6, cấu hình Docker và Render.
+- **CP7:** Yêu cầu Codex chạy benchmark local, bổ sung histogram và hai câu trả lời JWT/HPA, đối chiếu golden dataset và lập báo cáo từ JSON.
