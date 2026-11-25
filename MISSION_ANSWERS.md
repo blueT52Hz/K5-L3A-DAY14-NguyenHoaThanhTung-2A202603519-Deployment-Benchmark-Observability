@@ -115,7 +115,7 @@ docker compose -p k5-day14-docker logs --tail 8 nginx agent
 
 ### Exercises 3.1–3.2 — Triển khai agent Part 6
 
-Đã có [URL public trên Railway](https://k5-l3a-day14-nguyenhoathanhtung-2a202603519-depl-production.up.railway.app/). Kiểm tra từ bên ngoài: /health trả 200, /ready trả 200 và POST /ask thiếu key trả 401. Còn kiểm tra POST /ask với key hợp lệ. [Chi tiết triển khai](DEPLOYMENT.md).
+Đã có [URL public trên Railway](https://k5-l3a-day14-nguyenhoathanhtung-2a202603519-depl-production.up.railway.app/). Kiểm tra từ bên ngoài: /health trả 200, /ready trả 200 và POST /ask thiếu key trả 401. Người triển khai xác nhận POST /ask với key hợp lệ hoạt động (HTTP 200, có câu trả lời). [Chi tiết triển khai](DEPLOYMENT.md).
 
 Railway dùng `railway.toml` để chọn Dockerfile và health check `/health`. Khi triển khai theo file này, người triển khai cấp Redis và cấu hình các biến của agent trên nền tảng. Render dùng một Blueprint mô tả cả web service và Key Value, tự sinh `AGENT_API_KEY` và nối `REDIS_URL` đến datastore qua mạng riêng.
 
@@ -303,5 +303,7 @@ Kết quả chạy toàn bộ `python check_production_ready.py` trên Linux v�
 - **CP2:** Hỏi Codex về các command của Docker để lấy ra các thông tin của các image được build
 - **CP3:** Hỏi Codex về cách triên khai bài lab, gợi ý code.
 - **CP4:** Hỏi Codex về các lệnh docker, giải thích lệnh.
-- **CP5:** Yêu cầu Codex hướng dẫn và thực hiện Part 6, cấu hình Docker và Render.
-- **CP7:** Yêu cầu Codex chạy benchmark local, bổ sung histogram và hai câu trả lời JWT/HPA, đối chiếu golden dataset và lập báo cáo từ JSON.
+- **CP5:** Codex hướng dẫn Part 6, cấu hình Docker và Railway.
+- **CP6:** Codex hướng dẫn thao tác trên Railway để deploy Redis và App.
+- **CP7:** Codex hướng dẫn chạy benchmark local, bổ sung histogram và hai câu trả lời JWT/HPA, đối chiếu golden dataset và lập báo cáo từ JSON.
+- **CP8:** Codex hướng dẫn chạy stack observability và thu bằng chứng.
