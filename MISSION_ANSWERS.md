@@ -266,7 +266,32 @@ docker compose -p k5-day14-scaling down
 
 Sau khi dừng replica thứ nhất, hai replica còn lại vẫn phục vụ được yêu cầu qua Nginx và history trả về đủ **10** tin nhắn.
 
+## Part 6 — Production-ready agent (CP5)
+
+Kết quả chạy toàn bộ `python check_production_ready.py` trên Linux với Docker và Redis thật. Script đo image 63 MB, giới hạn 5 request/phút vẫn có hiệu lực sau restart và container dừng trong 0,6 giây với exit code 0.
+
+```text
+  📋 Checklist Deliverable
+     ✅ Dockerfile (multi-stage, < 500 MB)
+     ✅ docker-compose.yml (agent + redis)
+     ✅ .dockerignore
+     ✅ Health check endpoint (GET /health)
+     ✅ Readiness endpoint (GET /ready)
+     ✅ API Key authentication
+     ✅ Rate limiting
+     ✅ Cost guard
+     ✅ Config từ environment variables
+     ✅ Structured logging
+     ✅ Graceful shutdown
+     ✅ Public URL ready (Railway / Render config)
+----------------------------------------------------------------
+  Result: 12/12 tiêu chí đạt · 41/41 checks passed
+  🎉 PASS 12/12 — PRODUCTION READY! Deploy nào!
+```
+
 ## AI log
+
 - **CP2:** Hỏi Codex về các command của Docker để lấy ra các thông tin của các image được build
 - **CP3:** Hỏi Codex về cách triên khai bài lab, gợi ý code.
 - **CP4:** Hỏi Codex về các lệnh docker, giải thích lệnh.
+- **CP5:** Yêu cầu Codex hướng dẫn và thực hiện Part 6, cấu hình Docker và Render.

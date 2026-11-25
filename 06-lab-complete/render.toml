@@ -1,0 +1,27 @@
+# Reference copy. Render Blueprint reads render.yaml.
+[[services]]
+type = "web"
+name = "day14-agent"
+runtime = "docker"
+plan = "free"
+rootDir = "06-lab-complete"
+dockerfilePath = "./Dockerfile"
+healthCheckPath = "/health"
+
+[[services.envVars]]
+key = "ENVIRONMENT"
+value = "production"
+
+[[services.envVars]]
+key = "AGENT_API_KEY"
+generateValue = true
+
+[[services.envVars]]
+key = "REDIS_URL"
+fromService = { type = "keyvalue", name = "day14-redis", property = "connectionString" }
+
+[[services]]
+type = "keyvalue"
+name = "day14-redis"
+plan = "free"
+ipAllowList = []
