@@ -58,6 +58,12 @@ class LLMResult:
 # Mỗi entry: (các từ khoá kích hoạt, nội dung tài liệu)
 # ─────────────────────────────────────────────────────────
 KNOWLEDGE_BASE: list[tuple[list[str], str]] = [
+    (["jwt"],
+     "JWT là token có chữ ký. API kiểm tra chữ ký và thời điểm hết hạn trong claim exp. "
+     "Với API key, server đối chiếu chuỗi bí mật và quản lý việc thu hồi key."),
+    (["kubernetes hpa", "horizontal pod autoscaler", "hpa"],
+     "Kubernetes HPA điều chỉnh số pod dựa trên CPU, memory hoặc custom metrics "
+     "như số request mỗi giây và độ dài hàng đợi."),
     (["multi-stage", "multi stage"],
      "Multi-stage build tách Dockerfile thành stage builder (cài compiler, build dependencies) "
      "và stage runtime chỉ copy kết quả cần thiết. Image cuối nhỏ hơn và ít lỗ hổng bảo mật hơn."),

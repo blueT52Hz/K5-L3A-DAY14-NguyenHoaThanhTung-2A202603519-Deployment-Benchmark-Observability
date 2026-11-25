@@ -8,10 +8,16 @@ Mục tiêu: Tránh bill bất ngờ từ LLM API.
 
 Trong production: lưu trong Redis/DB, không phải in-memory.
 """
-import time
 import logging
+import os
+import time
 from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, ROUND_CEILING
+
 from fastapi import HTTPException
+from redis import Redis
+from redis.exceptions import WatchError
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +25,42 @@ logger = logging.getLogger(__name__)
 # Giá token (tham khảo, thay đổi theo model)
 PRICE_PER_1K_INPUT_TOKENS = 0.00015   # GPT-4o-mini: $0.15/1M input
 PRICE_PER_1K_OUTPUT_TOKENS = 0.0006   # GPT-4o-mini: $0.60/1M output
+
+MICRODOLLARS_PER_USD = 1_000_000
+MONTHLY_BUDGET_MICRODOLLARS = 10 * MICRODOLLARS_PER_USD
+monthly_budget_store = Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+
+
+def check_budget(user_id: str, estimated_cost: float) -> bool:
+    """Reserve the estimated cost against this user's $10 monthly budget."""
+    cost = Decimal(str(estimated_cost))
+    if not cost.is_finite() or cost < 0:
+        raise ValueError("estimated_cost must be finite and non-negative")
+    estimate = int(
+        (cost * MICRODOLLARS_PER_USD).to_integral_value(rounding=ROUND_CEILING)
+    )
+
+    while True:
+        now = datetime.now(timezone.utc)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        next_month = (month_start + timedelta(days=32)).replace(day=1)
+        key = f"budget:{user_id}:{now:%Y-%m}"
+
+        with monthly_budget_store.pipeline() as pipe:
+            try:
+                pipe.watch(key)
+                used = int(pipe.get(key) or 0)
+                new_total = used + estimate
+                if new_total > MONTHLY_BUDGET_MICRODOLLARS:
+                    return False
+
+                # Retry if another request updates this user's budget first.
+                pipe.multi()
+                pipe.set(key, new_total, exat=int(next_month.timestamp()))
+                pipe.execute()
+                return True
+            except WatchError:
+                continue
 
 
 @dataclass

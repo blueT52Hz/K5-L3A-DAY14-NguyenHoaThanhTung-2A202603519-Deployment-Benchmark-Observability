@@ -20,6 +20,7 @@ Test:
          http://localhost:8000/ask
 """
 import os
+from json import JSONDecodeError
 
 
 from fastapi import FastAPI, HTTPException, Security, Depends, Request
@@ -70,9 +71,13 @@ async def ask_agent(
     _key: str = Depends(verify_api_key),  # ✅ require auth
 ):
     """Protected endpoint — cần X-API-Key header"""
-    body = await request.json()
-    question = body.get("question", "")
-    if not question:
+    try:
+        body = await request.json()
+    except (JSONDecodeError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=422, detail='Send a JSON body with a "question" field') from exc
+
+    question = body.get("question") if isinstance(body, dict) else None
+    if not isinstance(question, str) or not question:
         raise HTTPException(status_code=422, detail="question is required")
     return {
         "question": question,
